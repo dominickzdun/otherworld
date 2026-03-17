@@ -1,16 +1,22 @@
-use bevy::ecs::world;
-use bevy::window::PrimaryWindow;
 use bevy::{math::f32, prelude::*};
 use noise::{NoiseFn, Perlin, Seedable};
-
 const PLAYER_SPEED: f32 = 5000.0;
+const TILE_SIZE: f32 = 15.0;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .insert_resource(WorldData { tiles: Vec::new() })
+        .insert_resource(WorldData {
+            tiles: Vec::new(),
+            tiles_loaded: Vec::new(),
+            width: 4200,  //4200
+            height: 1200, //1200
+        })
         .add_systems(Startup, setup)
-        .add_systems(Update, (move_player, update_camera).chain())
+        .add_systems(
+            Update,
+            (move_player, load_tiles_around_player, update_camera).chain(),
+        )
         .run();
 }
 
@@ -23,26 +29,132 @@ struct Player {
 #[derive(Resource)]
 struct WorldData {
     tiles: Vec<Tile>,
+    tiles_loaded: Vec<usize>,
+    width: i32,
+    height: i32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 enum Block {
     None,
+    Grass,
     Dirt,
+    Stone,
 }
 
 #[derive(Clone, Debug)]
 struct Tile {
     block: Block,
-    x: f32,
-    y: f32,
+    loaded: bool,
+    entity: Option<Entity>,
 }
 
-fn draw_player() {}
+#[derive(Resource)]
+struct TileTextures {
+    dirt: Handle<Image>,
+    grass: Handle<Image>,
+    stone: Handle<Image>,
+}
 
-fn draw() {}
+fn load_tiles_around_player(
+    player: Single<&Transform, With<Player>>,
+    mut commands: Commands,
+    mut world_data: ResMut<WorldData>,
+    tile_textures: Res<TileTextures>,
+) {
+    // make an array of indexs that have been loaded
+    // use that array of indexs to check if those indexs of world data are still inside player range
+    // also load new tile only if player position changes
 
-fn generate_world(seed: u32) {}
+    const TILE_RADIUS: i32 = 50;
+
+    let player_tile_x = (player.translation.x / TILE_SIZE).floor() as i32;
+    let player_tile_y = (player.translation.y / TILE_SIZE).floor() as i32;
+
+    let start_x = player_tile_x - TILE_RADIUS;
+    let end_x = player_tile_x + TILE_RADIUS;
+
+    let start_y = player_tile_y - TILE_RADIUS;
+    let end_y = player_tile_y + TILE_RADIUS;
+
+    for x in 0..=world_data.width {
+        // despawn tiles
+        for y in 0..=world_data.height {
+            let index = (x * (world_data.height + 1) + y) as usize;
+
+            if world_data.tiles[index].loaded {
+                if (x - player_tile_x).abs() > TILE_RADIUS
+                    || (y - player_tile_y).abs() > TILE_RADIUS
+                {
+                    if let Some(entity) = world_data.tiles[index].entity {
+                        commands.entity(entity).despawn();
+                    }
+
+                    world_data.tiles[index].loaded = false;
+                    world_data.tiles[index].entity = None;
+                }
+            }
+        }
+    }
+    // new despawn method
+    // let mut i = 0;
+
+    // while i < world_data.tiles_loaded.len() {
+    //     let index = world_data.tiles_loaded[i];
+
+    //     let x = index as i32 / (world_data.height + 1);
+    //     let y = index as i32 % (world_data.height + 1);
+
+    //     if (x - player_tile_x).abs() > TILE_RADIUS || (y - player_tile_y).abs() > TILE_RADIUS {
+    //         if let Some(entity) = world_data.tiles[index].entity {
+    //             commands.entity(entity).despawn();
+    //         }
+
+    //         world_data.tiles[index].loaded = false;
+    //         world_data.tiles[index].entity = None;
+
+    //         // remove from loaded list
+    //         world_data.tiles_loaded.swap_remove(i);
+    //     } else {
+    //         i += 1;
+    //     }
+    // }
+
+    for x in start_x..=end_x {
+        //draw new loaded tiles
+        for y in start_y..=end_y {
+            if x < 0 || y < 0 || x > world_data.width || y > world_data.height {
+                continue;
+            }
+
+            let index = (x * (world_data.height + 1) + y) as usize;
+
+            if world_data.tiles[index].loaded {
+                continue;
+            }
+
+            if world_data.tiles[index].block == Block::Dirt {
+                let world_x = x as f32 * TILE_SIZE;
+                let world_y = y as f32 * TILE_SIZE;
+
+                let entity = commands
+                    .spawn((
+                        Sprite {
+                            image: tile_textures.dirt.clone(),
+                            custom_size: Some(Vec2::splat(TILE_SIZE)),
+                            ..default()
+                        },
+                        Transform::from_xyz(world_x, world_y, 0.),
+                    ))
+                    .id();
+
+                world_data.tiles[index].loaded = true;
+                world_data.tiles[index].entity = Some(entity);
+                world_data.tiles_loaded.push(index);
+            }
+        }
+    }
+}
 
 fn update_camera(
     mut camera: Single<&mut Transform, (With<Camera2d>, Without<Player>)>,
@@ -79,10 +191,9 @@ fn move_player(
         direction.x += 1.;
     }
 
-
     let move_delta = direction.normalize_or_zero() * PLAYER_SPEED * time.delta_secs();
     player.translation += move_delta.extend(0.);
-    // println!("x: {} y: {} ", player.translation.x/15.0, player.translation.y/15.0);
+    // println!("x: {} y: {} ", player.translation.x/TILE_SIZE, player.translation.y/TILE_SIZE);
 }
 
 fn setup(
@@ -90,11 +201,15 @@ fn setup(
     mut world_data: ResMut<WorldData>,
     asset_server: Res<AssetServer>,
 ) {
-    let tile_size = 15.0;
+    commands.insert_resource(TileTextures {
+        dirt: asset_server.load("dirtblock.png"),
+        grass: asset_server.load("grassblock.png"),
+        stone: asset_server.load("stoneblock.png"),
+    });
 
     // Create user
     let mut player = Player {
-        x: 42.0 * 15.0, // Change so players spawns in middle of map
+        x: 42.0 * TILE_SIZE, // Change so players spawns in middle of map
         y: 600.0,
     };
 
@@ -102,7 +217,7 @@ fn setup(
     commands.spawn((
         Sprite {
             color: Color::srgb_u8(0, 0, 255),
-            custom_size: Some(Vec2::new(tile_size * 2., tile_size * 3.)),
+            custom_size: Some(Vec2::new(TILE_SIZE * 2., TILE_SIZE * 3.)),
             ..default()
         },
         Transform::from_xyz(player.x, player.y, 0.),
@@ -110,70 +225,31 @@ fn setup(
     ));
 
     let perlin = Perlin::new(5436457);
-    let width = 500; //4200
-    let height = 500; //1200
-    let scale = 0.10;
-    let max_hill_height = 5.0;
     // generate world, move tile data into world data, read from world data to load in blocks around player
     // fill world data tiles with blanks
-    for i in 0..=width {
-        for j in 0..=height {
-            let tile = Tile {
-                block: Block::None,
-                x: i as f32 * tile_size,
-                y: j as f32 * tile_size,
-            };
-            world_data.tiles.push(tile);
-        }
-    }
+    let size = ((world_data.width + 1) * (world_data.height + 1)) as usize;
+
+    world_data.tiles = vec![
+        Tile {
+            block: Block::None,
+            loaded: false,
+            entity: None,
+        };
+        size
+    ];
     // edit world data tiles with dirt blocks and generate world
-    for i in 0..=width {
-        let value = perlin.get([i as f64 * scale, 0.0]);
-        let normalized = (value + 1.0) / 2.0;
-        let num_tiles = (normalized * max_hill_height as f64) as usize;
+    for i in 0..=world_data.width {
+        let noiseValue = (60.0 * perlin.get([i as f64 * 0.002, 0.0])) // big hills
+            + 25.0 * perlin.get([i as f64 * 0.01, 0.0])  // medium hills
+            + 5.0 * perlin.get([i as f64 * 0.05, 0.0]); // small hils
 
-        for j in 0..num_tiles {
-            let index = i * (height + 1) + j;
-            if index < world_data.tiles.len() {
-                world_data.tiles[index].block = Block::Dirt;
+        let height_tiles = (200.0 + noiseValue / 90.0 * 50.0) as usize;
+
+        for j in 0..height_tiles {
+            let index = i * (world_data.height + 1) + (j as i32);
+            if index < (world_data.tiles.len() as i32) {
+                world_data.tiles[index as usize].block = Block::Dirt;
             }
         }
     }
-    // read from world data and display
-    for i in 0..=width  {
-        for j in 0..=height {
-            let index = i * (height + 1) + j as usize;
-            if world_data.tiles[index].block == Block::Dirt {
-                commands.spawn((
-                    Sprite {
-                        image: asset_server.load("dirtblock.png"),
-                        image_mode: SpriteImageMode::Auto,
-                        custom_size: Some(Vec2::splat(tile_size)),
-                        ..default()
-                    },
-                    Transform::from_xyz(i as f32 * tile_size, j as f32 * tile_size, 0.),
-                ));
-            }
-        }
-    }
-
-    // let grid_width = (width / tile_size) as i32;
-    // let grid_height = (height / tile_size) as i32;
-
-    // for x in 0..grid_width {
-    //     for y in 0..grid_height {
-    //         commands.spawn((
-    //             Sprite {
-    //                 color: Color::srgb_u8(200, 50, 200),
-    //                 custom_size: Some(Vec2::splat(tile_size)),
-    //                 ..default()
-    //             },
-    //             Transform::from_xyz(
-    //                 x as f32 * tile_size,
-    //                 y as f32 * tile_size,
-    //                 0.,
-    //             ),
-    //         ));
-    //     }
-    // }
 }
