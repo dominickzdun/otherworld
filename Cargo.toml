@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.18", features = ["jpeg","2d"] }
+bevy_framepace = "0.21.0"
 noise = "0.9.0"
 
 [profile.dev]
