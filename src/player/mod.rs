@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 pub struct PlayerPlugin;
-use crate::world::TILE_SIZE;
+use crate::world::*;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_player);
@@ -18,10 +18,10 @@ pub struct Player {
 
 pub fn spawn_player(mut commands: Commands) {
     let player = Player {
-        spawn_x: 42.0 * 15.0, // Change so players spawns in middle of map
-        spawn_y: 1200.0,
+        spawn_x: 4150.0 * TILE_SIZE as f32, // Change so players spawns in middle of map
+        spawn_y: 800.0 * TILE_SIZE as f32,
         previous_chunk: 0, //change to starting chunk
-        speed: 5000.0,
+        speed: 45.0 * TILE_SIZE as f32,
     };
 
     commands.spawn(Camera2d);
@@ -39,9 +39,35 @@ pub fn spawn_player(mut commands: Commands) {
 fn update_camera(
     mut camera: Single<&mut Transform, (With<Camera2d>, Without<Player>)>,
     player: Single<&Transform, (With<Player>, Without<Camera2d>)>,
+    world_data: Res<WorldData>,
 ) {
-    camera.translation.x = player.translation.x;
-    camera.translation.y = player.translation.y;
+    //assuming player has 1920x1080 display
+    let view_width = 1920.0;
+    let view_height = 1080.0;
+
+    let half_width = view_width / 2.0;
+    let half_height = view_height / 2.0;
+
+    let world_width_px = world_data.width as f32 * TILE_SIZE as f32;
+    let world_height_px = world_data.height as f32 * TILE_SIZE as f32;
+
+    let mut target_x = player.translation.x;
+    let mut target_y = player.translation.y;
+
+    if target_x < half_width {
+        target_x = half_width;
+    } else if target_x > world_width_px - half_width {
+        target_x = world_width_px - half_width;
+    }
+
+    if target_y < half_height {
+        target_y = half_height;
+    } else if target_y > world_height_px - half_height {
+        target_y = world_height_px - half_height;
+    }
+
+    camera.translation.x = target_x;
+    camera.translation.y = target_y;
     camera.translation.z = player.translation.z;
 }
 

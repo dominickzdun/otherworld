@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 pub const CHUNK_WIDTH: i32 = 200;
 pub const CHUNK_HEIGHT: i32 = 150;
-pub const TILE_SIZE: i32 = 4;
+pub const TILE_SIZE: i32 = 6;
 
 pub const AIR: u16 = 4;
 pub const GRASS: u16 = 2;
@@ -85,20 +85,25 @@ pub fn generate_world(mut world_data: ResMut<WorldData>) {
 
             for local_x in 0..CHUNK_WIDTH {
                 let world_x = x + local_x;
-
+                let mut set_grass = false;
                 let noise_value = (60.0 * perlin.get([world_x as f64 * 0.002, 0.0]))
                     + 25.0 * perlin.get([world_x as f64 * 0.01, 0.0])
                     + 5.0 * perlin.get([world_x as f64 * 0.05, 0.0]);
 
-                let height_tiles = (200.0 + noise_value / 90.0 * 50.0) as i32;
+                let height_tiles = (1000.0 + noise_value / 90.0 * 50.0) as i32;
 
                 for local_y in 0..CHUNK_HEIGHT {
                     let world_y = y + local_y;
+                    let index = (local_y * CHUNK_WIDTH + local_x) as usize;
 
-                    if world_y < height_tiles {
-                        let index = (local_y * CHUNK_WIDTH + local_x) as usize;
-
+                    if world_y == height_tiles - 1 {
+                        tiles[index] = GRASS;
+                    } else if world_y < height_tiles - 1 && world_y > height_tiles - 50 {
                         tiles[index] = DIRT;
+                    } else if world_y <= height_tiles - 50 {
+                        tiles[index] = STONE;
+                    } else {
+                        tiles[index] = AIR;
                     }
                 }
             }
