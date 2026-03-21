@@ -1,28 +1,27 @@
-use crate::player::*;
 use crate::world::*;
+use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 pub struct ChunkPlugin;
-
+use bevy::mesh::Indices;
+use bevy::prelude::Mesh;
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (create_chunk_meshes).chain());
-    }
-}
-
-fn create_chunk_meshes(world_data: Res<WorldData>) {
-    for c in 0..world_data.chunks.len() {
-        create_chunk_mesh(c, &world_data);
+        app.add_systems(Startup, create_chunk_mesh);
     }
 }
 
 fn get_tile_uv(tile_id: u16) -> (f32, f32, f32, f32) {
     // for one row
-    let tile_width = 1.0 / 8.0;
+    let tiles_in_one_row = 8.0;
+    let tile_width = 1.0 / tiles_in_one_row;
+    let eps = 0.01;
 
-    let u_min = tile_id as f32 * tile_width;
-    let u_max = u_min + tile_width;
+    let u_min = tile_id as f32 * tile_width + eps;
+    let u_max = u_min + tile_width - eps * 1.35;
 
-    (u_min, 0.0, u_max, 1.0)
+    let v_min = 1.0 + eps * 1.35;
+    let v_max = 0.0 - eps * 1.35;
+    (u_min, v_min, u_max, v_max)
 }
 
 // fn get_tile_uv(tile_id: u16) -> (f32, f32, f32, f32) { //MULTIPLE ROWS
@@ -70,26 +69,57 @@ fn add_tile_quad(
     indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
 }
 
-fn create_chunk_mesh(chunk_index: usize, world_data: &Res<WorldData>) {
-    let mut positions: Vec<[f32; 3]> = Vec::new();
-    let mut uvs: Vec<[f32; 2]> = Vec::new();
-    let mut indices: Vec<u32> = Vec::new();
-
-    for y in 0..CHUNK_HEIGHT {
-        for x in 0..CHUNK_WIDTH {
-            let index = (y * CHUNK_WIDTH + x) as usize;
-            let tile = world_data.chunks[chunk_index].tiles[index];
-            if tile == AIR {
-                continue;
+fn create_chunk_mesh(
+    world_data: Res<WorldData>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
+) {
+    for c in 0..168 {
+        let mut positions: Vec<[f32; 3]> = Vec::new();
+        let mut uvs: Vec<[f32; 2]> = Vec::new();
+        let mut indices: Vec<u32> = Vec::new();
+        for y in 0..CHUNK_HEIGHT {
+            for x in 0..CHUNK_WIDTH {
+                let index = (y * CHUNK_WIDTH + x) as usize;
+                let tile = world_data.chunks[c].tiles[index];
+                if tile == AIR {
+                    continue;
+                }
+                add_tile_quad(
+                    x as usize,
+                    y as usize,
+                    tile,
+                    &mut positions,
+                    &mut uvs,
+                    &mut indices,
+                );
             }
-            add_tile_quad(
-                x as usize,
-                y as usize,
-                tile,
-                &mut positions,
-                &mut uvs,
-                &mut indices,
-            );
         }
+        let mut mesh = Mesh::new(
+            bevy::mesh::PrimitiveTopology::TriangleList,
+            RenderAssetUsages::default(),
+        );
+
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+        mesh.insert_indices(Indices::U32(indices));
+
+        let mesh_handle = meshes.add(mesh);
+
+        let material_handle = materials.add(ColorMaterial {
+            texture: Some(asset_server.load("spritesheet.png")),
+            ..default()
+        });
+        commands.spawn((
+            Mesh2d(mesh_handle),
+            MeshMaterial2d(material_handle),
+            Transform::from_xyz(
+                world_data.chunks[c].start_x as f32,
+                world_data.chunks[c].start_y as f32,
+                0.0,
+            ),
+        ));
     }
 }

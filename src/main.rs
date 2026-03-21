@@ -34,14 +34,14 @@ fn setup(
     // });
 
     settings.limiter = Limiter::from_framerate(60.0);
-    let sprite_sheet = asset_server.load::<Image>("spritesheet.png");
+    // let sprite_sheet = asset_server.load::<Image>("spritesheet.png");
     // let layout =
     //     TextureAtlasLayout::from_grid(UVec2::splat(world::TILE_SIZE as u32), 3, 1, None, None);
     // let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    let material_handle = materials.add(ColorMaterial {
-        texture: Some(sprite_sheet),
-        ..default()
-    });
+    // let material_handle = materials.add(ColorMaterial {
+    //     texture: Some(sprite_sheet),
+    //     ..default()
+    // });
 
-    commands.insert_resource(TileMaterial(material_handle));
+    // commands.insert_resource(TileMaterial(material_handle));
 }

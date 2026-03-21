@@ -73,6 +73,7 @@ fn move_player(
     player_sprite.translation += move_delta.extend(0.);
     println!(
         "{} is x and {} is y",
-        player_sprite.translation.x, player_sprite.translation.y
+        player_sprite.translation.x / TILE_SIZE as f32,
+        player_sprite.translation.y / TILE_SIZE as f32
     );
 }
