@@ -2,9 +2,9 @@ use bevy::prelude::*;
 
 pub const CHUNK_WIDTH: i32 = 200;
 pub const CHUNK_HEIGHT: i32 = 150;
-pub const TILE_SIZE: i32 = 6;
+pub const TILE_SIZE: i32 = 16;
 
-pub const AIR: u16 = 4;
+pub const AIR: u16 = 3;
 pub const GRASS: u16 = 2;
 pub const DIRT: u16 = 1;
 pub const STONE: u16 = 0;
@@ -18,22 +18,23 @@ struct TileDef {
 }
 
 static TILE_DEFS: [TileDef; 4] = [
-    TileDef {
-        solid: false,
-        atlas_index: 4,
-    }, // air
+    // air
     TileDef {
         solid: true,
-        atlas_index: 0,
+        atlas_index: STONE,
     }, // stone
     TileDef {
         solid: true,
-        atlas_index: 1,
+        atlas_index: DIRT,
     }, // dirt
     TileDef {
         solid: true,
-        atlas_index: 2,
+        atlas_index: GRASS,
     }, // grass
+    TileDef {
+        solid: false,
+        atlas_index: AIR,
+    },
 ];
 
 pub struct Chunk {
@@ -63,6 +64,29 @@ impl WorldData {
             height: height,
             seed: seed,
         }
+    }
+    pub fn get_tile_id(&self, grid_x: f32, grid_y: f32) -> u16 {
+        let chunks_wide = self.width / CHUNK_WIDTH;
+
+        let chunk_x = (grid_x / CHUNK_WIDTH as f32).floor() as i32;
+        let chunk_y = (grid_y / CHUNK_HEIGHT as f32).floor() as i32;
+
+        let chunk_index = (chunk_y * chunks_wide + chunk_x) as usize;
+
+        if chunk_index >= self.chunks.len() {
+            return AIR;
+        }
+
+        let local_x = (grid_x as i32).rem_euclid(CHUNK_WIDTH) as usize;
+        let local_y = (grid_y as i32).rem_euclid(CHUNK_HEIGHT) as usize;
+
+        let tile_index = local_y * CHUNK_WIDTH as usize + local_x;
+        self.chunks[chunk_index].tiles[tile_index]
+    }
+
+    pub fn is_tile_solid(&self, grid_x: f32, grid_y: f32) -> bool {
+        let id = self.get_tile_id(grid_x, grid_y);
+        TILE_DEFS[id as usize].solid
     }
 }
 
