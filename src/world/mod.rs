@@ -18,7 +18,6 @@ struct TileDef {
 }
 
 static TILE_DEFS: [TileDef; 4] = [
-    // air
     TileDef {
         solid: true,
         atlas_index: STONE,

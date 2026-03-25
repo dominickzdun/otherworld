@@ -1,6 +1,10 @@
 use bevy::prelude::*;
 pub struct PlayerPlugin;
 use crate::world::*;
+
+pub const WEST: u16 = 1;
+pub const EAST: u16 = 0;
+
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_player);
@@ -16,6 +20,8 @@ pub struct Player {
     pub max_speed: f32,
     pub acceleration: f32,
     pub friction: f32,
+    pub direction: u16,
+    pub inventory: Vec<u16>,
 }
 
 pub fn spawn_player(mut commands: Commands) {
@@ -26,6 +32,8 @@ pub fn spawn_player(mut commands: Commands) {
         max_speed: 22.0 * TILE_SIZE as f32,
         acceleration: 68.0 * TILE_SIZE as f32,
         friction: 50.0 * TILE_SIZE as f32,
+        direction: EAST,
+        inventory: Vec::new(),
     };
 
     commands.spawn(Camera2d);
@@ -131,7 +139,16 @@ fn move_player(
     let mut next_x = player_sprite.translation;
     next_x.x += move_delta.x;
     if !is_colliding(next_x, player_size, &world_data) {
+        // Normal horizontal movement
         player_sprite.translation.x = next_x.x;
+    } else if is_grounded {
+        handle_one_block_step(
+            &mut player_sprite,
+            &mut player_data,
+            &world_data,
+            move_delta,
+            player_size,
+        );
     } else {
         player_data.velocity.x = 0.0;
     }
@@ -142,6 +159,33 @@ fn move_player(
         player_sprite.translation.y = next_y.y;
     } else {
         player_data.velocity.y = 0.0;
+    }
+}
+
+fn handle_one_block_step(
+    transform: &mut Transform,
+    player: &mut Player,
+    world: &WorldData,
+    move_delta: Vec2,
+    player_size: Vec2,
+) {
+    let step_up_height = TILE_SIZE as f32;
+    let mut step_up_pos = transform.translation;
+    step_up_pos.y += step_up_height;
+
+    // check if player will bump head
+    if !is_colliding(step_up_pos, player_size, world) {
+        let mut forward_step_pos = step_up_pos;
+        forward_step_pos.x += move_delta.x;
+        // check if player can move forward
+        if !is_colliding(forward_step_pos, player_size, world) {
+            transform.translation.y += step_up_height;
+            transform.translation.x = forward_step_pos.x;
+        } else {
+            player.velocity.x = 0.0;
+        }
+    } else {
+        player.velocity.x = 0.0;
     }
 }
 
