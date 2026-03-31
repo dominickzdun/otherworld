@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 pub const CHUNK_WIDTH: i32 = 200;
 pub const CHUNK_HEIGHT: i32 = 150;
-pub const TILE_SIZE: i32 = 16;
+pub const TILE_SIZE: f32 = 6.0;
 
 pub const AIR: u16 = 3;
 pub const GRASS: u16 = 2;
@@ -41,13 +41,13 @@ pub struct Chunk {
     pub dirty: bool,
     pub start_x: f32,
     pub start_y: f32,
+    pub entity: Option<Entity>,
 }
 
 #[derive(Resource)]
 pub struct WorldData {
     pub chunks: Vec<Chunk>,
-    pub chunks_loading_marked: Vec<usize>,
-    pub chunks_loaded: Vec<usize>,
+    pub chunks_for_render: Vec<usize>,
     pub width: i32,
     pub height: i32,
     seed: u32,
@@ -57,8 +57,7 @@ impl WorldData {
     pub fn new(seed: u32, width: i32, height: i32) -> Self {
         Self {
             chunks: Vec::new(),
-            chunks_loaded: Vec::new(),
-            chunks_loading_marked: Vec::new(),
+            chunks_for_render: Vec::new(),
             width: width,
             height: height,
             seed: seed,
@@ -134,8 +133,9 @@ pub fn generate_world(mut world_data: ResMut<WorldData>) {
             let chunk = Chunk {
                 tiles: tiles,
                 dirty: false,
-                start_x: (x * TILE_SIZE) as f32,
-                start_y: (y * TILE_SIZE) as f32,
+                start_x: (x as f32 * TILE_SIZE),
+                start_y: (y as f32 * TILE_SIZE),
+                entity: None,
             };
 
             world_data.chunks.push(chunk);
